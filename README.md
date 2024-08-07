@@ -16,12 +16,14 @@
 
 4. **更新された内容を `notion2md.py` でダウンロード**:
    - Notionで更新された内容を `notion2md.py` を使用して手元にダウンロードします。
+   - ダウンロードされたMarkdownファイルの末尾には、対応するNotionページのURLが `//url:xxxx` の形式で追加されます。
 
 5. **Cursorで内容をLLMと一緒に更新**:
    - ダウンロードしたMarkdownファイルをCursorで開き、LLMと一緒に内容を更新します。
 
 6. **更新したMarkdownファイルを `md2notion.py` で再度アップロード**:
    - 更新したMarkdownファイルを再度 `md2notion.py` を使用してNotionにアップロードし、最新の内容を共有します。
+   - Markdownファイルの末尾にある `//url:xxxx` を参照して、既存のNotionページを更新します。
 
 ## 共通の準備
 
@@ -62,7 +64,7 @@ python notion2md.py https://www.notion.so/your_page_url -o output_directory
 
 ### 出力
 
-指定されたディレクトリにMarkdownファイルが作成されます。ファイル名はNotionページのタイトルに基づきます。
+指定されたディレクトリにMarkdownファイルが作成されます。ファイル名はNotionページのタイトルに基づきます。さらに、Markdownファイルの末尾には対応するNotionページのURLが `//url:xxxx` の形式で追加されます。
 
 ## md2notion.py の使用方法
 
@@ -83,7 +85,7 @@ python md2notion.py your_markdown_file.md https://www.notion.so/your_parent_page
 
 ### 出力
 
-指定された親ページまたはデータベースに新しいNotionページが作成されます。既存のページを更新する場合は、Markdownファイルの末尾に `//url:NotionページのURL` を追加してください。
+指定された親ページまたはデータベースに新しいNotionページが作成されます。既存のページを更新する場合は、Markdownファイルの末尾に `//url:NotionページのURL` を追加してください。これにより、`md2notion.py` は既存のページを更新するためのURLを認識し、適切に更新を行います。
 
 ## 注意事項
 
@@ -105,4 +107,3 @@ python md2notion.py your_markdown_file.md https://www.notion.so/your_parent_page
 - `config.json` ファイルが正しく設定されているか
 
 詳細なエラーメッセージが表示された場合は、それに基づいて問題を解決するか、サポートを求めてください。
-
