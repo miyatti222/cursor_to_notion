@@ -32,7 +32,7 @@ def convert_markdown_to_notion_blocks(markdown: str) -> List[Dict[str, Any]]:
                     }
                 })
             
-            # リスト（箇条書きと番���き）
+            # リスト（箇条書きと番���
             elif line.lstrip().startswith('- ') or line.lstrip().startswith('* ') or re.match(r'^\s*\d+\.', line):
                 print("リストを処理します")
                 list_items, new_i = process_list_items(lines, i)
@@ -74,7 +74,7 @@ def convert_markdown_to_notion_blocks(markdown: str) -> List[Dict[str, Any]]:
             
             # テーブル
             elif '|' in line:
-                print("テーブルを処理しす")
+                print("テーブルを処理します")
                 table_rows = []
                 while i < len(lines) and '|' in lines[i]:
                     table_rows.append(lines[i])
@@ -89,13 +89,16 @@ def convert_markdown_to_notion_blocks(markdown: str) -> List[Dict[str, Any]]:
             # 通常のテキスト
             else:
                 print("段落を処理します")
-                blocks.append({
-                    "object": "block",
-                    "type": "paragraph",
-                    "paragraph": {
-                        "rich_text": [parse_inline_formatting(line)]
-                    }
-                })
+                try:
+                    blocks.append({
+                        "object": "block",
+                        "type": "paragraph",
+                        "paragraph": {
+                            "rich_text": [parse_inline_formatting(line)]
+                        }
+                    })
+                except ValueError as e:
+                    print(f"警告: {e}. 行をスキップします: {line}")
             
             i += 1
         
@@ -139,9 +142,13 @@ def parse_inline_formatting(text: str) -> Dict[str, Any]:
     match = re.search(link_pattern, text)
     if match:
         link_text, url = match.groups()
-        formatted_text["text"]["content"] = link_text
-        formatted_text["text"]["link"] = {"url": url}
-        text = re.sub(link_pattern, link_text, text)
+        # URLがhttpまたはhttpsで始まる場合のみ検証
+        if re.match(r"https?://", url):
+            if not re.match(r"https?://", url):
+                raise ValueError(f"Invalid URL: {url}")
+            formatted_text["text"]["content"] = link_text
+            formatted_text["text"]["link"] = {"url": url}
+            text = re.sub(link_pattern, link_text, text)
     
     formatted_text["text"]["content"] = text
     return formatted_text

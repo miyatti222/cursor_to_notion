@@ -4,7 +4,7 @@ import os
 import json
 import argparse
 import re
-from notion_client import Client
+from notion_client import Client, APIResponseError
 from md_to_blocks import convert_markdown_to_notion_blocks
 
 # Notion APIキーを環境変数から取得
@@ -31,8 +31,8 @@ def load_config():
         return {}
 
 def extract_id_from_url(url: str) -> str:
-    match = re.search(r"([a-f0-9]{32})", url)
-    return match.group(1) if match else None
+    match = re.search(r"([a-f0-9]{32}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})", url)
+    return match.group(1).replace("-", "") if match else None
 
 def clear_page_content(page_id: str):
     # ページの子ブロックをすべて取得
@@ -65,16 +65,19 @@ def create_or_update_notion_page(title: str, blocks: list, url: str, title_colum
         return notion.pages.retrieve(page_id=page_id)["url"]
     else:
         # 新しいページを作成
-        print("���いページを作成します")
+        print("新しいページを作成します")
         try:
             parent_object = notion.databases.retrieve(database_id=page_id)
             is_database = True
-        except:
-            try:
-                parent_object = notion.pages.retrieve(page_id=page_id)
-                is_database = False
-            except:
-                raise ValueError("Invalid parent URL: Neither a valid database nor a page")
+        except APIResponseError as e:
+            if e.code == "object_not_found":
+                try:
+                    parent_object = notion.pages.retrieve(page_id=page_id)
+                    is_database = False
+                except APIResponseError as e:
+                    raise ValueError(f"Invalid parent URL: {str(e)}")
+            else:
+                raise ValueError(f"APIエラー: {str(e)}")
 
         if is_database:
             new_page = notion.pages.create(
@@ -154,7 +157,7 @@ def main():
     try:
         page_url = create_or_update_notion_page(args.title, blocks, parent_url, args.column, update_mode=update_mode)
         if update_mode:
-            print(f"ページが更新されました: {page_url}")
+            print(f"���ージが更新されました: {page_url}")
         else:
             print(f"新しいページが作成されました: {page_url}")
     except Exception as e:
