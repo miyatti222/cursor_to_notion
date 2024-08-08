@@ -91,7 +91,6 @@ MarkdownファイルをNotionページに変換します。
 - `-c`, `--column`: データベースのタイトル列の名前（省略可能、デフォルトは `config.json` の設定）
 
 ### 使用例
-
 ```bash
 python md2notion.py your_markdown_file.md https://www.notion.so/your_parent_page_or_database_url -t "Your Page Title" -c "名前"
 ```
