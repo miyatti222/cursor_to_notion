@@ -33,7 +33,7 @@ def load_config():
         return {}
 
 def get_notion_page_content(page_id: str) -> List[Dict[str, Any]]:
-    """Notionページのコンテンツをブロックのリストとして取得"""
+    """Notionページのコンテンツを���トとして取得"""
     blocks = []
     has_more = True
     cursor = None
@@ -170,14 +170,26 @@ def get_page_title(page_id: str) -> str:
     page_info = notion.pages.retrieve(page_id)
     return page_info["properties"]["title"]["title"][0]["plain_text"]
 
-def process_page(page_id: str, page_url: str, output_dir: str, depth: int = 0):
+def process_page(page_id: str, page_url: str, output_dir: str, depth: int = 0, fetch_children: bool = False):
     """ページを処理してMarkdownファイルを作成"""
     blocks = get_notion_page_content(page_id)
     markdown_content = convert_notion_blocks_to_markdown(blocks, page_url)
 
     page_title = get_page_title(page_id)
     safe_title = re.sub(r'[<>:"/\\|?*]', '_', page_title)  # ファイル名に使えない文字を置換
-    output_file = os.path.join(output_dir, f"{safe_title}.md")
+
+    # 親ページは指定されたディレクトリに保存
+    if depth == 0:
+        output_file = os.path.join(output_dir, f"{safe_title}.md")
+        if fetch_children:
+            child_output_dir = os.path.join(output_dir, safe_title)  # 親ページの名前のフォルダを作成
+            os.makedirs(child_output_dir, exist_ok=True)
+        else:
+            child_output_dir = None
+    else:
+        # 子ページは親ページの名前のフォルダに保存
+        output_file = os.path.join(output_dir, f"{safe_title}.md")
+        child_output_dir = output_dir
 
     with open(output_file, "w", encoding="utf-8") as f:
         f.write(markdown_content)
@@ -185,17 +197,19 @@ def process_page(page_id: str, page_url: str, output_dir: str, depth: int = 0):
     print(f"{'  ' * depth}Markdownファイルが作成されました: {output_file}")
 
     # 子ページを再帰的に処理
-    child_pages = get_child_pages(page_id)
-    for child_page in child_pages:
-        child_id = child_page["id"]
-        child_url = f"https://www.notion.so/{child_id.replace('-', '')}"
-        process_page(child_id, child_url, output_dir, depth + 1)
+    if fetch_children and child_output_dir:
+        child_pages = get_child_pages(page_id)
+        for child_page in child_pages:
+            child_id = child_page["id"]
+            child_url = f"https://www.notion.so/{child_id.replace('-', '')}"
+            process_page(child_id, child_url, child_output_dir, depth + 1, fetch_children)
 
 def main():
     config = load_config()
     parser = argparse.ArgumentParser(description="Convert Notion page to Markdown file")
     parser.add_argument("url", help="URL of the Notion page")
     parser.add_argument("-o", "--output", help="Output directory for Markdown files")
+    parser.add_argument("-c", "--children", action="store_true", help="Fetch child pages")
     args = parser.parse_args()
 
     # NotionページIDを抽出
@@ -208,14 +222,13 @@ def main():
     if args.output:
         output_dir = args.output
     else:
-        safe_title = re.sub(r'[<>:"/\\|?*]', '_', parent_title)  # ファイル名に使えない文字を置換
-        output_dir = os.path.join(os.getcwd(), safe_title)
+        output_dir = os.getcwd()
     
     os.makedirs(output_dir, exist_ok=True)
     print(f"出力ディレクトリ: {output_dir}")
 
     # メインページを処理
-    process_page(page_id, args.url, output_dir)
+    process_page(page_id, args.url, output_dir, fetch_children=args.children)
 
 if __name__ == "__main__":
     main()
