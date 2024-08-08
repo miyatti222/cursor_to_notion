@@ -53,13 +53,26 @@ NotionページをMarkdownファイルに変換します。
 
 ### コマンドライン引数
 
-- `url`: NotionページのURL
+- `url`: NotionページのURL（省略可能、`config.json` に定義がある場合）
 - `-o`, `--output`: Markdownファイルの出力ディレクトリ（省略可能）
+- `-c`, `--children`: 子ページを取得する場合に指定
 
 ### 使用例
 
 ```bash
 python notion2md.py https://www.notion.so/your_page_url -o output_directory
+```
+
+または、`config.json` に `default_parent_url` が定義されている場合：
+
+```bash
+python notion2md.py -o output_directory
+```
+
+子ページを取得する場合：
+
+```bash
+python notion2md.py https://www.notion.so/your_page_url -o output_directory -c
 ```
 
 ### 出力

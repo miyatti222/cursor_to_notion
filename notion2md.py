@@ -33,7 +33,7 @@ def load_config():
         return {}
 
 def get_notion_page_content(page_id: str) -> List[Dict[str, Any]]:
-    """Notionページのコンテンツを���トとして取得"""
+    """Notionページのコンテンツを���ストとして取得"""
     blocks = []
     has_more = True
     cursor = None
@@ -207,10 +207,17 @@ def process_page(page_id: str, page_url: str, output_dir: str, depth: int = 0, f
 def main():
     config = load_config()
     parser = argparse.ArgumentParser(description="Convert Notion page to Markdown file")
-    parser.add_argument("url", help="URL of the Notion page")
+    parser.add_argument("url", nargs='?', help="URL of the Notion page")
     parser.add_argument("-o", "--output", help="Output directory for Markdown files")
     parser.add_argument("-c", "--children", action="store_true", help="Fetch child pages")
     args = parser.parse_args()
+
+    # URLが指定されていない場合、config.jsonから取得
+    if not args.url:
+        args.url = config.get("default_parent_url")
+        if not args.url:
+            print("エラー: URLが指定されておらず、config.jsonにも定義されていません。")
+            return
 
     # NotionページIDを抽出
     page_id = args.url.split("-")[-1]
