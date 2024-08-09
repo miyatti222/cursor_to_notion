@@ -48,32 +48,35 @@ def get_page_content(page_id: str) -> List[Dict[str, Any]]:
 
     return blocks
 
-def block_to_markdown(block: Dict[str, Any]) -> str:
+def block_to_markdown(block: Dict[str, Any], depth: int = 0) -> str:
     block_type = block["type"]
+    indent = "  " * depth
+
     if block_type == "paragraph":
-        return text_to_markdown(block["paragraph"]["rich_text"])
+        return f"{indent}{text_to_markdown(block['paragraph']['rich_text'])}\n"
     elif block_type.startswith("heading_"):
         level = int(block_type[-1])
-        return f"{'#' * level} {text_to_markdown(block[block_type]['rich_text'])}\n"
-    elif block_type == "bulleted_list_item":
-        return f"- {text_to_markdown(block['bulleted_list_item']['rich_text'])}\n"
-    elif block_type == "numbered_list_item":
-        return f"1. {text_to_markdown(block['numbered_list_item']['rich_text'])}\n"
+        return f"{indent}{'#' * level} {text_to_markdown(block[block_type]['rich_text'])}\n"
     elif block_type == "to_do":
         checked = "x" if block["to_do"]["checked"] else " "
-        return f"- [{checked}] {text_to_markdown(block['to_do']['rich_text'])}\n"
+        return f"{indent}- [{checked}] {text_to_markdown(block['to_do']['rich_text'])}\n"
     elif block_type == "code":
         language = block["code"]["language"]
         code = text_to_markdown(block["code"]["rich_text"])
-        return f"```{language}\n{code}\n```\n"
+        return f"{indent}```{language}\n{code}\n```\n"
     elif block_type == "quote":
-        return f"> {text_to_markdown(block['quote']['rich_text'])}\n"
+        return f"{indent}> {text_to_markdown(block['quote']['rich_text'])}\n"
     elif block_type == "divider":
-        return "---\n"
+        return f"{indent}---\n"
     elif block_type == "image":
         caption = text_to_markdown(block["image"].get("caption", []))
         url = block["image"]["file"]["url"]
-        return f"![{caption}]({url})\n"
+        return f"{indent}![{caption}]({url})\n"
+    elif block_type in ["numbered_list_item", "bulleted_list_item"]:
+        if block_type == "numbered_list_item":
+            return f"{indent}1. {text_to_markdown(block[block_type]['rich_text'])}\n"
+        else:
+            return f"{indent}- {text_to_markdown(block[block_type]['rich_text'])}\n"
     else:
         return ""
 
@@ -105,7 +108,8 @@ def get_page_title(page_id: str) -> str:
         if "Could not find page" in str(e):
             try:
                 database = notion.databases.retrieve(page_id)
-                return database["title"][0]["plain_text"]
+                if database["title"]:
+                    return database["title"][0]["plain_text"]
             except APIResponseError:
                 pass
         logging.error(f"APIエラー: {str(e)}")
@@ -129,11 +133,33 @@ def get_database_entries(database_id: str) -> List[Dict[str, Any]]:
 
 def process_blocks(blocks: List[Dict[str, Any]], depth: int = 0) -> str:
     markdown = ""
+    list_type = None
+    list_depth = 0
+
     for block in blocks:
-        markdown += block_to_markdown(block)
-        if block.get("has_children"):
-            child_blocks = get_page_content(block["id"])
-            markdown += process_blocks(child_blocks, depth + 1)
+        block_type = block["type"]
+
+        if block_type in ["numbered_list_item", "bulleted_list_item"]:
+            if list_type != block_type:
+                list_type = block_type
+                list_depth = depth
+            indent = "  " * depth
+            if block_type == "numbered_list_item":
+                markdown += f"{indent}1. {text_to_markdown(block[block_type]['rich_text'])}\n"
+            else:
+                markdown += f"{indent}- {text_to_markdown(block[block_type]['rich_text'])}\n"
+
+            if block.get("has_children"):
+                child_blocks = get_page_content(block["id"])
+                markdown += process_blocks(child_blocks, depth + 1)
+        else:
+            list_type = None
+            markdown += block_to_markdown(block, depth)
+
+            if block.get("has_children"):
+                child_blocks = get_page_content(block["id"])
+                markdown += process_blocks(child_blocks, depth + 1)
+
     return markdown
 
 def notion_to_md(page_id: str, output_dir: str, fetch_children: bool = False):
@@ -142,12 +168,8 @@ def notion_to_md(page_id: str, output_dir: str, fetch_children: bool = False):
         page = notion.pages.retrieve(page_id)
         is_database = False
     except APIResponseError:
-        try:
-            page = notion.databases.retrieve(page_id)
-            is_database = True
-        except APIResponseError as e:
-            logging.error(f"ページまたはデータベースの取得に失敗しました: {str(e)}")
-            return
+        page = notion.databases.retrieve(page_id)
+        is_database = True
 
     page_title = get_page_title(page_id)
     safe_title = re.sub(r'[<>:"/\\|?*]', '_', page_title)
@@ -158,7 +180,7 @@ def notion_to_md(page_id: str, output_dir: str, fetch_children: bool = False):
         if is_database:
             entries = get_database_entries(page_id)
             for entry in entries:
-                entry_title = get_entry_title(entry)
+                entry_title = entry["properties"].get("Name", {}).get("title", [{}])[0].get("plain_text", "Untitled")
                 entry_id = entry["id"]
                 f.write(f"- [{entry_title}](https://www.notion.so/{entry_id.replace('-', '')})\n")
         else:
@@ -174,7 +196,7 @@ def notion_to_md(page_id: str, output_dir: str, fetch_children: bool = False):
             entries = get_database_entries(page_id)
             for entry in entries:
                 entry_id = entry["id"]
-                entry_title = get_entry_title(entry)
+                entry_title = entry["properties"].get("Name", {}).get("title", [{}])[0].get("plain_text", "Untitled")
                 child_output_dir = os.path.join(output_dir, safe_title)
                 os.makedirs(child_output_dir, exist_ok=True)
                 notion_to_md(entry_id, child_output_dir, fetch_children)
@@ -185,13 +207,6 @@ def notion_to_md(page_id: str, output_dir: str, fetch_children: bool = False):
                 child_output_dir = os.path.join(output_dir, safe_title)
                 os.makedirs(child_output_dir, exist_ok=True)
                 notion_to_md(child_id, child_output_dir, fetch_children)
-
-def get_entry_title(entry: Dict[str, Any]) -> str:
-    for prop_name, prop_value in entry["properties"].items():
-        if prop_value["type"] == "title":
-            if prop_value["title"]:
-                return prop_value["title"][0]["plain_text"]
-    return "Untitled"
 
 def main():
     config = load_config()
@@ -209,7 +224,7 @@ def main():
 
     page_id = extract_id_from_url(args.url)
     if not page_id:
-        logging.error("エラ: 有効なNotionページIDがURLから抽出できませんでした。")
+        logging.error("エラー: 有効なNotionページIDがURLから抽出できませんでした。")
         return
 
     output_dir = args.output or os.getcwd()
